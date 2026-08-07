@@ -5,6 +5,33 @@
 
 ---
 
+## ۰) راه‌اندازی یک‌کلیک (مهم!)
+
+همه‌چیز با یک دستور اجرا می‌شود:
+
+```bash
+export RAILWAY_TOKEN="توکن_اکانت"
+export WORKSPACE_ID="..."
+export PROJECT_ID="..."
+export ENV_ID="..."
+export PANELS='{"xui-nl": "https://...", "xui-sg": "https://...", "xui-us-va": "https://...", "xui-us-ca": "https://..."}'
+export SERVICE_IDS='{"xui-nl": "svc-id-1", "xui-sg": "svc-id-2", "xui-us-va": "svc-id-3", "xui-us-ca": "svc-id-4"}'
+bash run_all.sh
+```
+
+`run_all.sh` این ۴ مرحله را پشت سر هم اجرا می‌کند:
+
+| مرحله | اسکریپت | کار |
+|---|---|---|
+| 1 | `deploy.py` | ساخت سرویس‌ها (ریجن + دامنه 3000 + ولوم) |
+| 2 | `xui-node-connector.py` | لاگین + API Token + اتصال نودها به پنل مرکزی |
+| 3 | `xui-reality-inbound.py` | ساخت اینباند VLESS+Reality روی همه پنل‌ها |
+| 4 | `xui-tcp-proxy-setup.py` | TCP proxy + روتیت به دامنه خوب + Host ها |
+
+> متغیرهای پیش‌فرض: `XUI_USERNAME=admin`، `XUI_PASSWORD=admin`، `MAIN_PANEL=xui-nl`
+
+---
+
 ## ۱) دیپلوی اولیه (ساده)
 
 ```bash
