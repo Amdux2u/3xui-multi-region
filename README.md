@@ -13,7 +13,7 @@
 | `xui-nl` | Amsterdam | `ams` | 🇳🇱 هلند |
 | `xui-sg` | Singapore | `sin` | 🇸🇬 سنگاپور |
 | `xui-us-va` | Virginia | `iad` | 🇺🇸 آمریکا (شرق) |
-| `xui-us-west` | Portland | `pdx` | 🇺🇸 آمریکا (غرب) |
+| `xui-us-ca` | San Francisco | `sfo` | 🇺🇸 آمریکا (غرب - کالیفرنیا) |
 
 هر سرویس یک دامنه مستقل `.up.railway.app` می‌گیرد — کلاینت به نزدیک‌ترین ریجن وصل می‌شود.
 
