@@ -94,10 +94,10 @@ def create_service(pid, name, region):
             "projectId": pid,
             "source": {"repo": REPO},
             "branch": BRANCH,
-            "variables": [  # EnvironmentVariables: لیست {name, value}
-                {"name": "REGION_NAME", "value": region},
-                {"name": "BOOTSTRAP", "value": "0"},
-            ],
+            "variables": {  # EnvironmentVariables = JSON object (نه لیست!)
+                "REGION_NAME": region,
+                "BOOTSTRAP": "0",
+            },
         }})
     if "errors" in d:
         msg = d["errors"][0]["message"]
