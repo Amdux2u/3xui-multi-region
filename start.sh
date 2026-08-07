@@ -6,6 +6,15 @@ REGION_NAME="${REGION_NAME:-unknown}"
 
 echo "🚀 Starting X-UI + nginx reverse proxy [region: $REGION_NAME]..."
 
+# ── Bootstrap خودکار ─────────────────────────────────────
+# فقط سرویس اول (BOOTSTRAP=1) سرویس‌های چند-ریجن را می‌سازد.
+# سرویس‌هایی که bootstrap می‌سازد BOOTSTRAP=0 دارند → این بخش اجرا نمی‌شود
+# (جلوگیری از حلقه‌ی بی‌نهایت).
+if [ "${BOOTSTRAP:-0}" = "1" ]; then
+    echo "🌍 Bootstrap mode: creating multi-region services..."
+    python3 /app/bootstrap.py || echo "⚠️ bootstrap failed (continuing anyway)"
+fi
+
 # nginx همیشه روی پورت ثابت 3000 گوش می‌دهد
 export NGINX_PORT=3000
 

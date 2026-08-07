@@ -22,6 +22,7 @@ RUN mkdir -p /etc/x-ui /var/log/x-ui
 
 COPY nginx.conf.template /etc/nginx/nginx.conf.template
 COPY start.sh /start.sh
+COPY bootstrap.py /app/bootstrap.py
 RUN chmod +x /start.sh
 
 # Railway پورت رو از طریق متغیر $PORT تزریق می‌کند
