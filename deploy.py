@@ -114,7 +114,7 @@ def create_service(pid, name):
 def set_region(env_id, svc_id, region):
     d = gql(
         'mutation($e: String!, $s: String!, $input: ServiceInstanceUpdateInput!){ '
-        'serviceInstanceUpdate(environmentId: $e, serviceId: $s, input: $input) { id } }',
+        'serviceInstanceUpdate(environmentId: $e, serviceId: $s, input: $input) }',
         {"e": env_id, "s": svc_id, "input": {"region": region}})
     if "errors" in d:
         print(f"  ⚠️ ریجن: {d['errors'][0]['message']}")
