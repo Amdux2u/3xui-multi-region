@@ -136,6 +136,23 @@ def create_domain(env_id, svc_id):
     return d["data"]["serviceDomainCreate"]["domain"]
 
 
+def create_volume(env_id, svc_id, region, mount_path="/etc/x-ui"):
+    """ساخت Volume برای حفظ تنظیمات پنل — روی mount_path."""
+    d = gql(
+        'mutation($input: VolumeCreateInput!){ volumeCreate(input: $input) { id } }',
+        {"input": {
+            "environmentId": env_id,
+            "projectId": os.environ.get("PROJECT_ID", ""),
+            "serviceId": svc_id,
+            "region": region,
+            "mountPath": mount_path,
+        }})
+    if "errors" in d:
+        print(f"  ⚠️ ولوم: {d['errors'][0]['message']}")
+        return None
+    return d["data"]["volumeCreate"]["id"]
+
+
 def main():
     if not TOKEN:
         print("❌ RAILWAY_TOKEN را ست کن!")
@@ -165,6 +182,11 @@ def main():
                 results.append((name, domain))
             else:
                 results.append((name, "دامنه نشد (شاید پلن)"))
+            vol_id = create_volume(env_id, svc_id, region)
+            if vol_id:
+                print(f"  ✅ ولوم: {vol_id}  (مونت روی /etc/x-ui)")
+            else:
+                print("  ⚠️ ولوم ساخته نشد — تنظیمات بعد از ری‌دیپلوی پاک می‌شوند!")
         except SystemExit as e:
             print(f"  {e}")
             results.append((name, "خطا"))
