@@ -145,6 +145,19 @@ def create_inbound(base, cookie, csrf):
     return status, body, client_id, pub, short_id
 
 
+def find_existing_inbound(base, cookie, csrf):
+    """پیدا کردن اینباند موجود روی پورت هدف — جلوگیری از ساخت تکراری."""
+    status, _, body = req(base, "/managepanel/panel/api/inbounds/list", cookie=cookie, csrf=csrf)
+    try:
+        inbounds = json.loads(body).get("obj", [])
+    except Exception:
+        return None
+    for ib in inbounds:
+        if isinstance(ib, dict) and ib.get("port") == PORT:
+            return ib
+    return None
+
+
 def main():
     print("🔐 ساخت اینباند Reality روی همه پنل‌ها\n" + "=" * 50)
     results = {}
@@ -156,6 +169,22 @@ def main():
             print(f"  ❌ {err}")
             continue
         print(f"  ✅ لاگین موفق")
+
+        # جلوگیری از ساخت تکراری — اینباند موجود روی پورت را پیدا کن
+        existing = find_existing_inbound(base, sess, csrf)
+        if existing:
+            print(f"  ℹ️ اینباند {PORT} از قبل هست (id={existing.get('id')}) — رد شد")
+            clients = existing.get("settings", {}).get("clients", [])
+            rs = existing.get("streamSettings", {}).get("realitySettings", {})
+            if clients and rs:
+                results[name] = {
+                    "uuid": clients[0].get("id", ""),
+                    "pub": rs.get("settings", {}).get("publicKey", ""),
+                    "short_id": (rs.get("shortIds") or [""])[0],
+                    "address": base.replace("https://", ""),
+                }
+                print(f"  ℹ️ UUID موجود: {results[name]['uuid']}")
+            continue
 
         print(f"  📡 ساخت اینباند VLESS+Reality :{PORT} → {DEST} ...")
         status, body, client_id, pub, short_id = create_inbound(base, sess, csrf)

@@ -98,13 +98,14 @@ python3 xui-node-connector.py
    - ✅ `/managepanel/panel/api/nodes/list`
    - ❌ `/panel/api/nodes/list` → **502** (nginx به پورت اشتباه می‌فرستد!)
 
-2. **جریان لاگین (CSRF):**
+2. **جریان لاگین (CSRF) — حیاتی:**
    ```
    GET  /managepanel/            → کوکی 3x-ui
    GET  /managepanel/csrf-token  → توکن CSRF (فیلد obj)
    POST /managepanel/login       → {username, password} + هدر X-CSRF-Token
    ```
    ⚠️ **بعد از لاگین، دوباره CSRF mint کن!** توکن قبلی با سشن جدید نامعتبر است.
+   ⚠️ **کوکی سشن بعد از لاگین عوض می‌شود!** باید `Set-Cookie` پاسخ login را بگیری، نه کوکی اولیه — وگرنه API ها 404 می‌دهند.
 
 3. **همه POST ها به هدر `X-CSRF-Token` نیاز دارند** — بدون آن → 403
 
@@ -133,6 +134,23 @@ python3 xui-node-connector.py
      "enable": true
    }
    ```
+
+8. **⚠️ اینباند تکراری نساز! (باگ مهم)**
+   - فقط **یک** اینباند می‌تواند روی پورت 443 گوش دهد — بقیه fail می‌شوند و xray خراب می‌شود
+   - اجرای مکرر اسکریپت بدون چک، اینباندهای تکراری می‌سازد → همه‌چیز قطع می‌شود
+   - `xui-reality-inbound.py` حالا idempotent است (چک می‌کند اینباند 443 از قبل هست یا نه)
+   - اگر اینباندهای تکراری ساختی: همه به جز اولی را حذف کن (`/panel/api/inbounds/del/{id}`)
+
+9. **⚠️ اینباندهای نودهای ریموت ممکن است "گم" شوند**
+   - بعد از ریاستارت xray، اینباندهای پنل‌های ریموت ممکن است حذف شوند
+   - تست سریع: `curl` مستقیم به پنل ریموت → اگر `Connection reset by peer` گرفتی یعنی اینباند نیست
+   - فیکس: اینباند را دوباره روی پنل ریموت بساز (`xui_fix_remote_inbounds.py` یا اجرای دوباره‌ی xui-reality-inbound)
+
+10. **ریجن‌ها (مهم):**
+    - فیلد `region` در `serviceInstance` ممکن است `null` برگردد ولی ریجن واقعاً ست شده باشد
+    - راه درست ست ریجن: `serviceInstanceUpdate` با `region: "ams|sin|iad|sfo"`
+    - ⚠️ گاهی بعد از ست ریجن باید سرویس را redeploy کنی تا اعمال شود
+    - ریجن‌های معتبر: `ams` (هلند), `sin` (سنگاپور), `iad` (ویرجینیا), `sfo` (کالیفرنیا), `pdx` (پورتلند)
 
 ---
 
