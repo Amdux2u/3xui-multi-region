@@ -30,11 +30,23 @@
 6. متغیر `REGION_NAME` را ست کنید (اختیاری، فقط برای لاگ)
 
 ### روش ۲ — API (خودکار)
-این کار را می‌توان با Railway GraphQL API هم انجام داد:
+با اسکریپت `deploy.py` همه‌چیز خودکار انجام می‌شود: ساخت سرویس + تنظیم ریجن + ساخت دامنه با پورت 3000:
+
+```bash
+export RAILWAY_TOKEN="توکن_اکانت"
+python3 deploy.py            # همه ۴ سرویس
+python3 deploy.py xui-nl     # فقط یکی
 ```
-serviceCreate(input: { name: "xui-nl", projectId: "...", source: { repo: "Kolkolz/3xui-multi-region" }, branch: "main" })
-serviceInstanceUpdate(environmentId, input: { region: "ams" }, serviceId)
-```
+
+| متغیر | پیش‌فرض | توضیح |
+|---|---|---|
+| `WORKSPACE_ID` | اولین workspace | شناسه workspace |
+| `PROJECT_ID` | خودکار (پیدا/ساخت) | شناسه پروژه |
+| `REPO` | `Kolkolz/3xui-multi-region` | ریپوی سورس |
+| `BRANCH` | `main` | برنچ |
+| `TARGET_PORT` | `3000` | پورت دامنه |
+
+> هر سرویس بعد از ساخت، **دامنه‌ی خودکار** با `targetPort=3000` می‌گیرد (همان پورتی که nginx گوش می‌دهد).
 
 ---
 
