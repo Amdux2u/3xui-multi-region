@@ -116,12 +116,18 @@ curl -I https://دامنه.up.railway.app/managepanel/
 
 ---
 
-## 📄 فایل‌ها
+## 📄 فایل‌های ریپو
 
 | فایل | توضیح |
 |---|---|
 | `Dockerfile` | alpine:3.20 + 3x-ui v3.6.0 + nginx |
 | `nginx.conf.template` | reverse proxy: پنل (2053) + ساب (2096) + اینباند (8080-8089) |
 | `start.sh` | راه‌اندازی x-ui + ساخت nginx.conf با `$PORT` |
+| `deploy.py` | ساخت خودکار سرویس‌ها (ریجن + دامنه + ولوم) از بیرون با API |
+| `bootstrap.py` | خود-راه‌انداز داخل کانتینر (فقط با `BOOTSTRAP=1`) |
+| `xui-node-connector.py` | اتصال نودهای چند-ریجن به پنل مرکزی |
+| `SETUP_NOTES.md` | **نکات کامل راه‌اندازی — حتماً بخوانید!** |
+
+> 📖 قبل از هر کاری [`SETUP_NOTES.md`](SETUP_NOTES.md) را بخوان — شامل همه‌ی اشتباهات رایج و فیکس‌های آن‌هاست.
 
 *ساخته‌شده توسط Hermes برای پروژه Railway امیر*
