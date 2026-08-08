@@ -1,20 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-3x-ui Reality Inbound Creator
-=============================
-ساخت اینباند VLESS + TCP + Reality روی همه پنل‌ها.
+3x-ui Reality Inbound Creator (Standard)
+========================================
+ساخت اینباند VLESS + TCP + Reality روی همه پنل‌ها با مشخصات ثابت.
 
-مشخصات اینباند:
-  - پورت: 443
-  - پروتکل: vless
-  - شبکه: tcp (raw)
-  - امنیت: reality
-  - Target: is1-ssl.mzstatic.com:443
-  - SNI: is1-ssl.mzstatic.com
-  - بقیه تنظیمات پیش‌فرض
+مشخصات ثابت اینباند (که باید روی همه پنل‌ها یکسان باشد):
+  - پورت:      443
+  - پروتکل:    vless
+  - شبکه:      tcp (raw)
+  - امنیت:     reality
+  - Target:    is1-ssl.mzstatic.com:443
+  - serverNames: is1..is5.ssl.mzstatic.com
+  - فینگرپرینت: ios
+  - بقیه تنظیمات: پیش‌فرض خود پنل (دست نمی‌خورد)
 
-هر پنل یک UUID متفاوت می‌گیرد.
+نکته‌ها:
+  - اگر پنل از قبل اینباند پورت 443 داشته باشد، رد می‌شود (تکراری نمی‌سازد!)
+  - هر پنل یک UUID و keypair متفاوت می‌گیرد
+  - پنل‌ها از متغیر محیطی PANELS خوانده می‌شوند:
+      PANELS="xui-nl=https://...;xui-sg=https://...;..."
+    یا اگر ست نشده باشد از PANELS_FALLBACK استفاده می‌شود
+
+استفاده:
+    export PANELS="xui-nl=https://...;xui-sg=https://..."
+    python3 xui-reality-inbound.py
 """
 
 import base64
@@ -29,20 +39,46 @@ import uuid
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from cryptography.hazmat.primitives import serialization
 
-# ── تنظیمات ────────────────────────────────────────────
-PANELS = {
+# ── تنظیمات ثابت ───────────────────────────────────────
+PORT = 443
+PROTOCOL = "vless"
+NETWORK = "tcp"
+SECURITY = "reality"
+TARGET = "is1-ssl.mzstatic.com:443"
+SERVER_NAMES = [
+    "is3-ssl.mzstatic.com",
+    "is1-ssl.mzstatic.com",
+    "is4-ssl.mzstatic.com",
+    "is2-ssl.mzstatic.com",
+    "is5-ssl.mzstatic.com",
+]
+FINGERPRINT = "ios"
+REMARK = "VLESS-Reality-443"
+
+USERNAME = os.environ.get("XUI_USERNAME", "admin")
+PASSWORD = os.environ.get("XUI_PASSWORD", "admin")
+
+# پنل‌ها: از env، یا فالبک پیش‌فرض
+PANELS_FALLBACK = {
     "xui-nl": "https://xui-nl-production-a29c.up.railway.app",
     "xui-sg": "https://xui-sg-production-434c.up.railway.app",
     "xui-us-va": "https://xui-us-va-production-3d26.up.railway.app",
     "xui-us-ca": "https://xui-us-ca-production-4c58.up.railway.app",
 }
-USERNAME = "admin"
-PASSWORD = "admin"
 
-PORT = 443
-DEST = "is1-ssl.mzstatic.com:443"
-SNI = "is1-ssl.mzstatic.com"
-REMARK = "VLESS-Reality-443"
+
+def parse_panels():
+    raw = os.environ.get("PANELS", "")
+    panels = {}
+    if raw:
+        for part in raw.split(";"):
+            if "=" in part:
+                k, v = part.split("=", 1)
+                panels[k.strip()] = v.strip()
+    return panels or PANELS_FALLBACK
+
+
+PANELS = parse_panels()
 
 
 def gen_keypair():
@@ -88,20 +124,33 @@ def login(base):
     cookie = resp.headers.get("Set-Cookie", "").split(";")[0]
     resp.close()
     status, _, body = req(base, "/managepanel/csrf-token", cookie=cookie)
-    csrf = json.loads(body).get("obj", "")
+    csrf1 = json.loads(body).get("obj", "")
     status, hdrs, body = req(base, "/managepanel/login", method="POST",
                              data={"username": USERNAME, "password": PASSWORD},
-                             cookie=cookie, csrf=csrf)
+                             cookie=cookie, csrf=csrf1)
     if status != 200:
-        return None, None, f"لاگین ناموفق ({status}): {body[:120]}"
-    sess = hdrs.get("Set-Cookie", "").split(";")[0] or cookie
-    # CSRF تازه بعد از لاگین
+        return None, None
+    sess = hdrs.get("Set-Cookie", "").split(";")[0] if hdrs.get("Set-Cookie") else cookie
     status, _, body = req(base, "/managepanel/csrf-token", cookie=sess)
     csrf = json.loads(body).get("obj", "")
-    return sess, csrf, ""
+    return sess, csrf
 
 
-def create_inbound(base, cookie, csrf):
+def has_port443(base, cookie, csrf):
+    """چک: آیا پنل از قبل اینباند پورت 443 دارد؟ (جلوگیری از تکرار)"""
+    status, _, body = req(base, "/managepanel/panel/api/inbounds/list", cookie=cookie, csrf=csrf)
+    try:
+        inbounds = json.loads(body).get("obj", [])
+        for ib in inbounds:
+            if isinstance(ib, dict) and ib.get("port") == PORT:
+                return True, ib
+    except Exception:
+        pass
+    return False, None
+
+
+def build_inbound():
+    """ساخت payload اینباند — فقط مشخصات ثابت + کلیدهای تازه، بقیه پیش‌فرض پنل."""
     priv, pub = gen_keypair()
     short_id = gen_short_id()
     client_id = str(uuid.uuid4())
@@ -111,7 +160,7 @@ def create_inbound(base, cookie, csrf):
         "remark": REMARK,
         "listen": "",
         "port": PORT,
-        "protocol": "vless",
+        "protocol": PROTOCOL,
         "expiryTime": 0,
         "total": 0,
         "settings": {
@@ -120,17 +169,17 @@ def create_inbound(base, cookie, csrf):
             "fallbacks": []
         },
         "streamSettings": {
-            "network": "tcp",
-            "security": "reality",
+            "network": NETWORK,
+            "security": SECURITY,
             "realitySettings": {
                 "show": False,
-                "dest": DEST,
-                "serverNames": [SNI],
+                "dest": TARGET,
+                "serverNames": SERVER_NAMES,
                 "privateKey": priv,
                 "shortIds": [short_id],
                 "settings": {
                     "publicKey": pub,
-                    "fingerprint": "chrome",
+                    "fingerprint": FINGERPRINT,
                     "serverName": "",
                     "spiderX": ""
                 },
@@ -139,72 +188,50 @@ def create_inbound(base, cookie, csrf):
         },
         "sniffing": {"enabled": True, "destOverride": ["http", "tls"]}
     }
-
-    status, _, body = req(base, "/managepanel/panel/api/inbounds/add",
-                          method="POST", data=inbound, cookie=cookie, csrf=csrf)
-    return status, body, client_id, pub, short_id
-
-
-def find_existing_inbound(base, cookie, csrf):
-    """پیدا کردن اینباند موجود روی پورت هدف — جلوگیری از ساخت تکراری."""
-    status, _, body = req(base, "/managepanel/panel/api/inbounds/list", cookie=cookie, csrf=csrf)
-    try:
-        inbounds = json.loads(body).get("obj", [])
-    except Exception:
-        return None
-    for ib in inbounds:
-        if isinstance(ib, dict) and ib.get("port") == PORT:
-            return ib
-    return None
+    return inbound, client_id, pub, short_id
 
 
 def main():
-    print("🔐 ساخت اینباند Reality روی همه پنل‌ها\n" + "=" * 50)
+    print(f"🔐 ساخت اینباند استاندارد (VLESS+Reality :{PORT} → {TARGET})\n" + "=" * 55)
     results = {}
 
     for name, base in PANELS.items():
         print(f"\n[{name}] لاگین...")
-        sess, csrf, err = login(base)
+        sess, csrf = login(base)
         if not sess:
-            print(f"  ❌ {err}")
+            print(f"  ❌ لاگین ناموفق")
             continue
         print(f"  ✅ لاگین موفق")
 
-        # جلوگیری از ساخت تکراری — اینباند موجود روی پورت را پیدا کن
-        existing = find_existing_inbound(base, sess, csrf)
-        if existing:
-            print(f"  ℹ️ اینباند {PORT} از قبل هست (id={existing.get('id')}) — رد شد")
-            clients = existing.get("settings", {}).get("clients", [])
-            rs = existing.get("streamSettings", {}).get("realitySettings", {})
-            if clients and rs:
-                results[name] = {
-                    "uuid": clients[0].get("id", ""),
-                    "pub": rs.get("settings", {}).get("publicKey", ""),
-                    "short_id": (rs.get("shortIds") or [""])[0],
-                    "address": base.replace("https://", ""),
-                }
-                print(f"  ℹ️ UUID موجود: {results[name]['uuid']}")
+        # جلوگیری از اینباند تکراری 443
+        exists, ib = has_port443(base, sess, csrf)
+        if exists:
+            print(f"  ⏭️ اینباند 443 از قبل هست (id={ib.get('id')} | {ib.get('remark')}) — رد شد")
+            results[name] = {"skipped": True, "inbound": ib}
             continue
 
-        print(f"  📡 ساخت اینباند VLESS+Reality :{PORT} → {DEST} ...")
-        status, body, client_id, pub, short_id = create_inbound(base, sess, csrf)
+        print(f"  📡 ساخت اینباند VLESS+Reality :{PORT} → {TARGET} (fp={FINGERPRINT}) ...")
+        inbound, client_id, pub, short_id = build_inbound()
+        status, _, body = req(base, "/managepanel/panel/api/inbounds/add",
+                              method="POST", data=inbound, cookie=sess, csrf=csrf)
         if status == 200 and '"success":true' in body:
             print(f"  ✅ اینباند ساخته شد!")
             print(f"  🆔 UUID: {client_id}")
             print(f"  🔑 PublicKey: {pub}")
             print(f"  🏷 ShortId: {short_id}")
-            results[name] = {
-                "uuid": client_id, "pub": pub, "short_id": short_id,
-                "address": base.replace("https://", ""),
-            }
+            results[name] = {"uuid": client_id, "pub": pub, "short_id": short_id,
+                             "address": base.replace("https://", "")}
         else:
             print(f"  ❌ خطا ({status}): {body[:200]}")
         time.sleep(1)
 
-    print(f"\n{'=' * 50}\n📋 خلاصه:")
+    print(f"\n{'=' * 55}\n📋 خلاصه:")
     for name, info in results.items():
+        if info.get("skipped"):
+            print(f"\n⏭️ {name}: اینباند از قبل بود")
+            continue
         print(f"\n🔗 {name}:")
-        print(f"   vless://{info['uuid']}@{info['address']}:{PORT}?encryption=none&security=reality&sni={SNI}&fp=chrome&pbk={info['pub']}&sid={info['short_id']}&type=tcp&headerType=none#VLESS-Reality-{name}")
+        print(f"   vless://{info['uuid']}@{info['address']}:{PORT}?encryption=none&security=reality&sni=is1-ssl.mzstatic.com&fp={FINGERPRINT}&pbk={info['pub']}&sid={info['short_id']}&type=tcp&headerType=none#VLESS-Reality-{name}")
 
     return 0
 
